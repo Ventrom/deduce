@@ -1,0 +1,40 @@
+{
+  "name": "deduce",
+  "version": "0.0.1",
+  "description": "Data analytics and partitioning for use with crossfilter",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com/Ventrom/deduce.git"
+  },
+  "scripts": {
+    "build": "npm run build:esdoc",
+    "build:esdoc": "esdoc -c .esdoc.conf",
+    "test": "npm run test:mocha || true",
+    "test:eslint": "eslint .",
+    "test:mocha": "mocha test/",
+    "prepublish": "npm run build",
+    "prepublish:git": "npm run -s is:prepublished || npm run prepublish",
+    "postinstall": "npm run prepublish:git",
+    "is:prepublished": "( npm run -s is:bash && npm run -s is:prepublished:bash ) || ( npm run -s is:cmd && npm run -s is:prepublished:cmd )",
+    "is:prepublished:bash": "exit",
+    "is:prepublished:cmd": "exit",
+    "is:bash": "echo -n '' # > nul & exit 1",
+    "is:cmd": "echo -n '' ; false # > nul"
+  },
+  "main": "index.js",
+  "files": [
+    "index.js"
+  ],
+  "dependencies": {
+    "camelcase": "^2.1.1",
+    "d3": "^3.5.16"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "esdoc": "^0.4.5",
+    "eslint": "^2.2.0",
+    "events": "^1.1.0",
+    "mocha": "^2.4.5"
+  }
+}
