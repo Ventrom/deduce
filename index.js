@@ -65,7 +65,7 @@ function deduce(data) {
                 case "activity":
                 case "organization":
                     Object.keys(rec[field]).forEach((tag) => {
-                        if (typeof(rec[field][tag]) !== "String") return
+                        if (typeof(rec[field][tag]) !== "string") return
                         if (!result.dimensions[tag]) {
                             result.dimensions[tag] = {
                                 dim: field,
