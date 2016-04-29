@@ -23,6 +23,18 @@ function pluckMetric(name) {
     }
 }
 
+function recommendFilters() {
+    let result = []
+
+    Object.keys(this.dimensions).forEach((d) => {
+        if (d.dim === "time") return
+        let type = d.items.length > 6 ? "row" : "pie"
+        d.metrics.forEach((m) => result.push({"dim": d.dim, "type": type, "dtag": d.key, "gtag": m, "gname": this.groups[m].name}))
+    })
+
+    return result
+}
+
 //
 // prepare a set of data for use with crossfilter
 // by analyzing the available dimensions and metrics
@@ -34,11 +46,15 @@ function deduce(data) {
         dimensions: {},
         groups: {},
         timeRange: [Infinity, 0],
-        records: data
+        records: data,
+        filters: recommendFilters
     }
+    let timeDims = ["year", "month", "week", "day", "hour"]
 
     // process the information in each record
     data.forEach((rec) => {
+        let recDims = []
+        let recMetrics = []
         Object.keys(rec).forEach((field) => {
             // Process well-known fields
             switch (field) {
@@ -48,15 +64,18 @@ function deduce(data) {
                 case "activity":
                 case "organization":
                     Object.keys(rec[field]).forEach((tag) => {
+                        if (typeof(rec[field][tag]) !== "String") return
                         if (!result.dimensions[tag]) {
                             result.dimensions[tag] = {
                                 dim: field,
                                 key: tag,
                                 items: new Set(),
-                                accessor: pluck([field, tag])
+                                accessor: pluck([field, tag]),
+                                metrics: new Set()
                             }
                         }
                         result.dimensions[tag].items.add(rec[field][tag])
+                        recDims.push(result.dimensions[tag])
                     })
                     break;
 
@@ -73,18 +92,20 @@ function deduce(data) {
                     // TODO add day of week?
                     rec.hour = d3.time.hour(rec.dt)
                     // TODO will probably want to add minute/second for completeness
-                    if (!result.dimensions["year"]) {
-                        ["year", "month", "week", "day", "hour"].forEach((tag) => {
+                    if (!result.dimensions[timeDims[0]]) {
+                        timeDims.forEach((tag) => {
                             result.dimensions[tag] = {
                                 dim: "time",
                                 key: tag,
-                                accessor: pluck([tag])
+                                accessor: pluck([tag]),
+                                metrics: new Set()
                             }
                         })
                     }
                     // update the overall time extent
                     result.timeRange[0] = Math.min(result.timeRange[0], rec.dt)
                     result.timeRange[1] = Math.max(result.timeRange[1], rec.dt)
+                    recDims.push.apply(recDims, timeDims)
                     break;
                 case "metrics":
                     rec.metrics.forEach((m) => {
@@ -96,6 +117,7 @@ function deduce(data) {
                                 accessor: pluckMetric(m.name)
                             }
                         }
+                        recMetrics.push(id)
                     })
                     break;
                 case "rep":
@@ -103,6 +125,7 @@ function deduce(data) {
                     break;
             }
         })
+        recDims.forEach((d) => d.metrics.add.apply(d.metrics, recMetrics))
     })
 
     return result
