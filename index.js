@@ -26,7 +26,8 @@ function pluckMetric(name) {
 function recommendFilters() {
     let result = []
 
-    Object.keys(this.dimensions).forEach((d) => {
+    Object.keys(this.dimensions).forEach((tag) => {
+        let d = this.dimensions[tag]
         if (d.dim === "time") return
         let type = d.items.length > 6 ? "row" : "pie"
         d.metrics.forEach((m) => result.push({"dim": d.dim, "type": type, "dtag": d.key, "gtag": m, "gname": this.groups[m].name}))
