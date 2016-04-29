@@ -28,7 +28,7 @@ function recommendFilters() {
 
     Object.keys(this.dimensions).forEach((tag) => {
         let d = this.dimensions[tag]
-        if (d.dim === "time") return
+        if (d.dim === "time" || d.items.size <= 1) return
         let type = d.items.size > 6 ? "row" : "pie"
         d.metrics.forEach((m) => result.push({"dim": d.dim, "type": type, "dtag": d.key, "gtag": m, "gname": this.groups[m].title}))
     })
