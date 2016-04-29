@@ -105,7 +105,7 @@ function deduce(data) {
                     // update the overall time extent
                     result.timeRange[0] = Math.min(result.timeRange[0], rec.dt)
                     result.timeRange[1] = Math.max(result.timeRange[1], rec.dt)
-                    recDims.push.apply(recDims, timeDims)
+                    recDims.push.apply(recDims, timeDims.map((t) => result.dimensions[t]))
                     break;
                 case "metrics":
                     rec.metrics.forEach((m) => {
