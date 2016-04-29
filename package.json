@@ -2,7 +2,8 @@
   "name": "deduce",
   "version": "0.0.1",
   "description": "Data analytics and partitioning for use with crossfilter",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
+  "copyright": "2016",
   "repository": {
     "type": "git",
     "url": "git@github.com/Ventrom/deduce.git"
