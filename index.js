@@ -2,26 +2,7 @@
 
 const d3 = require('d3')
 const camelCase = require('camelcase')
-
-function pluck(keys) {
-    return function(r) {
-        let result = r
-        for (let k of keys) {
-            if (typeof(result[k]) === "undefined") return "n/a"
-            result = result[k]
-        }
-        return result
-    }
-}
-
-function pluckMetric(name) {
-    return function(r) {
-        for (let m of r.metrics) {
-            if (m.name === name) return m.value
-        }
-        return null
-    }
-}
+const pluck = require('pluck')
 
 function recommendFilters() {
     let result = []
@@ -71,7 +52,7 @@ function deduce(data) {
                                 dim: field,
                                 key: tag,
                                 items: new Set(),
-                                accessor: pluck([field, tag]),
+                                accessor: pluck(field+"."+tag),
                                 metrics: new Set()
                             }
                         }
@@ -98,7 +79,7 @@ function deduce(data) {
                             result.dimensions[tag] = {
                                 dim: "time",
                                 key: tag,
-                                accessor: pluck([tag]),
+                                accessor: pluck(tag),
                                 metrics: new Set()
                             }
                         })
@@ -115,7 +96,7 @@ function deduce(data) {
                             result.groups[id] = {
                                 title: m.name,
                                 units: m.units,
-                                accessor: pluckMetric(m.name)
+                                accessor: (pluck("name") === m.name ? pluck("value") : "n/a")
                             }
                         }
                         recMetrics.push(id)
