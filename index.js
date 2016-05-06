@@ -4,6 +4,15 @@ const d3 = require('d3')
 const camelCase = require('camelcase')
 const pluck = require('pluck')
 
+function pluckMetric(name) {
+    return function(r) {
+        for (let m of r.metrics) {
+            if (m.name === name) return m.value
+        }
+        return null
+    }
+}
+
 function recommendFilters() {
     let result = []
 
@@ -96,7 +105,7 @@ function deduce(data) {
                             result.groups[id] = {
                                 title: m.name,
                                 units: m.units,
-                                accessor: (pluck("name") === m.name ? pluck("value") : "n/a")
+                                accessor: pluckMetric(m.name)
                             }
                         }
                         recMetrics.push(id)
