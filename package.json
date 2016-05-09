@@ -1,6 +1,6 @@
 {
   "name": "deduce",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Data analytics and partitioning for use with crossfilter",
   "license": "Apache-2.0",
   "copyright": "2016",
