@@ -1,17 +1,34 @@
+/*
+ * (C) Copyright 2016 Ventrom LLC (http://www.ventrom.com/)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Contributors:
+ *     David Ciarletta
+ *     Renan Dembogurski
+ */
+
 'use strict'
 
 const d3 = require('d3')
-const camelCase = require('camelcase')
+const inflector = require('inflected')
+const pluck = require('pluck')
+const reductio = require('reductio')
 
-function pluck(keys) {
-    return function(r) {
-        let result = r
-        for (let k of keys) {
-            if (typeof(result[k]) === "undefined") return "n/a"
-            result = result[k]
-        }
-        return result
-    }
+function pluckFullLoc(rec) {
+    return Object.keys(rec["location"])
+        .filter(function(k) {return typeof(rec["location"][k]) === "string"})
+        .sort().map(function(k) {return k + ":" + rec["location"][k]}).join(":")
 }
 
 function pluckMetric(name) {
@@ -23,14 +40,100 @@ function pluckMetric(name) {
     }
 }
 
-function recommendFilters() {
+function generateReducer(id, accessor, filter) {
+    if (!filter) filter = function() {return true}
+    let reducer = reductio()
+    reducer.value(id)
+        .filter(filter)
+        .sum(accessor)
+        .valueList(accessor)
+        .count(true).min(true).max(true).avg(true).median(true)
+    return reducer
+}
+
+function generateGroupAccessors(id) {
+    return {
+        "sum": pluck("value."+id+".sum"),
+        "average": pluck("value."+id+".avg"),
+        "count": pluck("value."+id+".count"),
+        "min": pluck("value."+id+".min"),
+        "max": pluck("value."+id+".max"),
+        "median": pluck("value."+id+".median"),
+        "values": pluck("value."+id+".valueList")
+    }
+}
+
+function recommendFilters(dataset) {
     let result = []
 
-    Object.keys(this.dimensions).forEach((tag) => {
-        let d = this.dimensions[tag]
-        if (d.dim === "time" || d.items.size <= 1) return
-        let type = d.items.size > 6 ? "row" : "pie"
-        d.metrics.forEach((m) => result.push({"dim": d.dim, "type": type, "dtag": d.key, "gtag": m, "gname": this.groups[m].title}))
+    Object.keys(dataset.dimensions).forEach((tag) => {
+        let d = dataset.dimensions[tag]
+        // TODO handle recommendations for geo filters
+        if (tag === "position" || d.dim === "time" || d.items.size <= 1) return
+        let type = d.items.size > 9 ? "row" : "pie"
+        d.metrics.forEach((m) => result.push({"type": type, "dimension": d, "groups": [dataset.groups[m]], "defaultGroupAccessor": "sum", "title": dataset.groups[m].title + " by " + inflector.titleize(d.key)}))
+    })
+
+    return result
+}
+
+function recommendCharts(dataset) {
+    let result = []
+    let timeUnits = "year"
+
+    if (dataset.timeRange[1] !== 0) {
+        let secDiff = (dataset.timeRange[1] - dataset.timeRange[0])/1000
+        if (secDiff < 3600*12) { // up to 12 hours
+            timeUnits = null
+        } else if (secDiff < 3600*24*7) { // up to 7 days
+            timeUnits = "hour"
+        } else if (secDiff < 3600*24*70) { // up to 10 weeks
+            timeUnits = "day"
+        } else if (secDiff < 3600*24*365) { // up to a year
+            timeUnits = "week"
+        } else if (secDiff < 3600*24*3650) { // up to 10 years
+            timeUnits = "month"
+        }
+    }
+
+    Object.keys(dataset.dimensions).forEach((tag) => {
+        let d = dataset.dimensions[tag]
+
+        if (d.dim === "time" && d.key === timeUnits) {
+            let compatibleUnitsFound = []
+            d.metrics.forEach((m) => {
+                result.push({"type": "candle", "dimension": d, "groups": [dataset.groups[m]], "defaultGroupAccessor": "values", "title": dataset.groups[m].title + " by " + inflector.titleize(d.key)})
+
+                if (compatibleUnitsFound.indexOf(dataset.groups[m].units) < 0) {
+                    let compatibleMetrics = [...d.metrics].filter((m2) => (m2 !== m && dataset.groups[m].units === dataset.groups[m2].units))
+                    if (compatibleMetrics.length > 0) {
+                        compatibleUnitsFound.push(dataset.groups[m].units)
+                        compatibleMetrics.push(m)
+                        let title = "Average " + compatibleMetrics.map((m) => dataset.groups[m].title).join(", ") + " by " + inflector.titleize(d.key)
+                        result.push({"type": "line", "dimension": d, "groups": compatibleMetrics.map((m) => dataset.groups[m]), "defaultGroupAccessor": "average", "title": title})
+                    }
+                }
+
+                dataset.groups[m].dimensions.forEach((tag2) => {
+                    let d2 = dataset.dimensions[tag2]
+                    if (d2.dim === "time" || d2.items.size < 2) return
+                    let groups = [...d2.items].map((item) => {
+                        let id = inflector.parameterize(item+"-"+m)
+                        return {
+                            title: dataset.groups[m].title,
+                            label: item,
+                            units: dataset.groups[m].units,
+                            accessor: dataset.groups[m].accessor,
+                            dimensions: new Set([...dataset.groups[m].dimensions].filter((t) => dataset.dimensions[t].dim !== d2.dim)),
+                            reducer: generateReducer(id, dataset.groups[m].accessor, function(r) { return d2.accessor(r) === item}),
+                            groupAccessors: generateGroupAccessors(id)
+                        }
+                    })
+                    let title = dataset.groups[m].title + " by " + inflector.titleize(d.key) + " by " + inflector.titleize(d2.key)
+                    result.push({"type": "sand", "dimension": d, "groups": groups, "defaultGroupAccessor": "sum", "title": title})
+                })
+            })
+        }
     })
 
     return result
@@ -47,8 +150,7 @@ function deduce(data) {
         dimensions: {},
         groups: {},
         timeRange: [Infinity, 0],
-        records: data,
-        filters: recommendFilters
+        records: data
     }
     let timeDims = ["year", "month", "week", "day", "hour"]
 
@@ -60,7 +162,22 @@ function deduce(data) {
             // Process well-known fields
             switch (field) {
                 case "location":
-                    // TODO store unique location -- lat/lon mappings
+                    if (typeof(rec[field]["lat"]) === "number" &&
+                        typeof(rec[field]["lon"]) === "number") {
+                            let fullLoc = pluckFullLoc(rec)
+                            result.locations[fullLoc] = {"lat": rec[field]["lat"], "lon": rec[field]["lon"]}
+                            if (!result.dimensions["position"]) {
+                                result.dimensions["position"] = {
+                                    dim: field,
+                                    key: "position",
+                                    items: new Set(),
+                                    accessor: pluckFullLoc,
+                                    metrics: new Set()
+                                }
+                            }
+                            result.dimensions["position"].items.add(fullLoc)
+                            recDims.push(result.dimensions["position"])
+                        }
                 case "system":
                 case "activity":
                 case "organization":
@@ -71,7 +188,7 @@ function deduce(data) {
                                 dim: field,
                                 key: tag,
                                 items: new Set(),
-                                accessor: pluck([field, tag]),
+                                accessor: pluck(field+"."+tag),
                                 metrics: new Set()
                             }
                         }
@@ -98,7 +215,7 @@ function deduce(data) {
                             result.dimensions[tag] = {
                                 dim: "time",
                                 key: tag,
-                                accessor: pluck([tag]),
+                                accessor: pluck(tag),
                                 metrics: new Set()
                             }
                         })
@@ -110,25 +227,46 @@ function deduce(data) {
                     break;
                 case "metrics":
                     rec.metrics.forEach((m) => {
-                        var id = camelCase(m.name)
+                        var id = inflector.parameterize(m.name)
                         if (!result.groups[id]) {
                             result.groups[id] = {
-                                title: m.name,
+                                key: id,
+                                title: inflector.titleize(m.name),
                                 units: m.units,
-                                accessor: pluckMetric(m.name)
+                                accessor: pluckMetric(m.name),
+                                dimensions: new Set(),
+                                reducer: generateReducer(id, pluckMetric(m.name)),
+                                groupAccessors: generateGroupAccessors(id)
                             }
                         }
-                        recMetrics.push(id)
+                        recMetrics.push(result.groups[id])
                     })
                     break;
                 case "rep":
-
+                case "baseline":
+                case "produced_by":
+                    if (!result.dimensions[field]) {
+                        result.dimensions[field] = {
+                            dim: "data_source",
+                            key: field,
+                            items: new Set(),
+                            accessor: pluck(field),
+                            metrics: new Set()
+                        }
+                    }
+                    result.dimensions[field].items.add(rec[field])
+                    recDims.push(result.dimensions[field])
                     break;
             }
         })
-        recDims.forEach((d) => d.metrics.add.apply(d.metrics, recMetrics))
+        recDims.forEach((d) => recMetrics.forEach((m) => {
+            d.metrics.add(m.key)
+            m.dimensions.add(d.key)
+        }))
     })
 
+    result.filters = recommendFilters(result)
+    result.charts = recommendCharts(result)
     return result
 }
 
