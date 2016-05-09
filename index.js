@@ -41,9 +41,10 @@ function pluckMetric(name) {
 }
 
 function generateReducer(id, accessor, filter) {
-    let reducer = reductio().value(id)
-    if (filter) reducer.filter(filter)
-    reducer
+    if (!filter) filter = function() {return true}
+    let reducer = reductio()
+    reducer.value(id)
+        .filter(filter)
         .sum(accessor)
         .valueList(accessor)
         .count(true).min(true).max(true).avg(true).median(true)
@@ -69,7 +70,7 @@ function recommendFilters(dataset) {
         let d = dataset.dimensions[tag]
         // TODO handle recommendations for geo filters
         if (tag === "position" || d.dim === "time" || d.items.size <= 1) return
-        let type = d.items.size > 6 ? "row" : "pie"
+        let type = d.items.size > 9 ? "row" : "pie"
         d.metrics.forEach((m) => result.push({"type": type, "dimension": d, "groups": [dataset.groups[m]], "defaultGroupAccessor": "sum", "title": dataset.groups[m].title + " by " + inflector.titleize(d.key)}))
     })
 
@@ -104,11 +105,11 @@ function recommendCharts(dataset) {
                 result.push({"type": "candle", "dimension": d, "groups": [dataset.groups[m]], "defaultGroupAccessor": "values", "title": dataset.groups[m].title + " by " + inflector.titleize(d.key)})
 
                 if (compatibleUnitsFound.indexOf(dataset.groups[m].units) < 0) {
-                    let compatibleMetrics = d.metrics.filter((m2) => (m2 !== m && dataset.groups[m].units === dataset.groups[m2].units))
+                    let compatibleMetrics = [...d.metrics].filter((m2) => (m2 !== m && dataset.groups[m].units === dataset.groups[m2].units))
                     if (compatibleMetrics.length > 0) {
                         compatibleUnitsFound.push(dataset.groups[m].units)
                         compatibleMetrics.push(m)
-                        let title = compatibleMetrics.map((m) => m.title).join(", ") + " by " + inflector.titleize(d.key)
+                        let title = "Average " + compatibleMetrics.map((m) => dataset.groups[m].title).join(", ") + " by " + inflector.titleize(d.key)
                         result.push({"type": "line", "dimension": d, "groups": compatibleMetrics.map((m) => dataset.groups[m]), "defaultGroupAccessor": "average", "title": title})
                     }
                 }
@@ -116,7 +117,7 @@ function recommendCharts(dataset) {
                 dataset.groups[m].dimensions.forEach((tag2) => {
                     let d2 = dataset.dimensions[tag2]
                     if (d2.dim === "time" || d2.items.size < 2) return
-                    let groups = d2.items.map((item) => {
+                    let groups = [...d2.items].map((item) => {
                         let id = inflector.parameterize(item+"-"+m)
                         return {
                             title: dataset.groups[m].title,
@@ -124,7 +125,7 @@ function recommendCharts(dataset) {
                             units: dataset.groups[m].units,
                             accessor: dataset.groups[m].accessor,
                             dimensions: new Set([...dataset.groups[m].dimensions].filter((t) => dataset.dimensions[t].dim !== d2.dim)),
-                            reducer: generateReducer(id, dataset.groups[m].accessor, function(r) { return d2.accessor(r) == item}),
+                            reducer: generateReducer(id, dataset.groups[m].accessor, function(r) { return d2.accessor(r) === item}),
                             groupAccessors: generateGroupAccessors(id)
                         }
                     })
@@ -229,6 +230,7 @@ function deduce(data) {
                         var id = inflector.parameterize(m.name)
                         if (!result.groups[id]) {
                             result.groups[id] = {
+                                key: id,
                                 title: inflector.titleize(m.name),
                                 units: m.units,
                                 accessor: pluckMetric(m.name),
@@ -237,15 +239,12 @@ function deduce(data) {
                                 groupAccessors: generateGroupAccessors(id)
                             }
                         }
-                        recMetrics.push(id)
+                        recMetrics.push(result.groups[id])
                     })
                     break;
                 case "rep":
-                case "source":
-                case "task":
                 case "baseline":
                 case "produced_by":
-                case "plan":
                     if (!result.dimensions[field]) {
                         result.dimensions[field] = {
                             dim: "data_source",
@@ -260,8 +259,10 @@ function deduce(data) {
                     break;
             }
         })
-        recDims.forEach((d) => d.metrics.add.apply(d.metrics, recMetrics))
-        recMetrics.forEach((m) => result.groups[m].dimensions.add.apply(result.groups[m].dimensions, recDims.map((d) => d.key)))
+        recDims.forEach((d) => recMetrics.forEach((m) => {
+            d.metrics.add(m.key)
+            m.dimensions.add(d.key)
+        }))
     })
 
     result.filters = recommendFilters(result)
