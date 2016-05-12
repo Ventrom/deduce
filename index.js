@@ -41,10 +41,11 @@ function pluckMetric(name) {
 }
 
 function generateReducer(id, accessor, filter) {
-    if (!filter) filter = function() {return true}
+    let full_filter = function(r) {return (accessor(r) !== null) ? true : false}
+    if (filter) full_filter = function(r) {return (accessor(r) !== null) ? filter(r) : false}
     let reducer = reductio()
     reducer.value(id)
-        .filter(filter)
+        .filter(full_filter)
         .sum(accessor)
         .valueList(accessor)
         .count(true).min(true).max(true).avg(true).median(true)
@@ -53,13 +54,13 @@ function generateReducer(id, accessor, filter) {
 
 function generateGroupAccessors(id) {
     return {
-        "sum": pluck("value."+id+".sum"),
-        "average": pluck("value."+id+".avg"),
-        "count": pluck("value."+id+".count"),
-        "min": pluck("value."+id+".min"),
-        "max": pluck("value."+id+".max"),
-        "median": pluck("value."+id+".median"),
-        "values": pluck("value."+id+".valueList")
+        "sum": function(d) { return (typeof(d.value) === "number") ? d.value : pluck("value."+id+".sum")(d) },
+        "average": function(d) { return (typeof(d.value) === "number") ? d.value : pluck("value."+id+".avg")(d) },
+        "count": function(d) { return (typeof(d.value) === "number") ? d.value : pluck("value."+id+".count")(d) },
+        "min": function(d) { return (typeof(d.value) === "number") ? d.value : pluck("value."+id+".min")(d) },
+        "max": function(d) { return (typeof(d.value) === "number") ? d.value : pluck("value."+id+".max")(d) },
+        "median": function(d) { return (typeof(d.value) === "number") ? d.value : pluck("value."+id+".median")(d) },
+        "values": function(d) { return Array.isArray(d.value) ? d.value : pluck("value."+id+".valueList")(d) }
     }
 }
 
