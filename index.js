@@ -127,7 +127,8 @@ function recommendCharts(dataset) {
                             accessor: dataset.groups[m].accessor,
                             dimensions: new Set([...dataset.groups[m].dimensions].filter((t) => dataset.dimensions[t].dim !== d2.dim)),
                             reducer: generateReducer(id, dataset.groups[m].accessor, function(r) { return d2.accessor(r) === item}),
-                            groupAccessors: generateGroupAccessors(id)
+                            groupAccessors: generateGroupAccessors(id),
+                            id: id
                         }
                     })
                     let title = dataset.groups[m].title + " by " + inflector.titleize(d.key) + " by " + inflector.titleize(d2.key)
