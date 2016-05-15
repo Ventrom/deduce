@@ -72,7 +72,12 @@ function recommendFilters(dataset) {
         // TODO handle recommendations for geo filters
         if (tag === "position" || d.dim === "time" || d.items.size <= 1) return
         let type = d.items.size > 9 ? "row" : "pie"
-        d.metrics.forEach((m) => result.push({"type": type, "dimension": d, "groups": [dataset.groups[m]], "defaultGroupAccessor": "sum", "title": dataset.groups[m].title + " by " + inflector.titleize(d.key)}))
+        d.metrics.forEach((m) => result.push(
+            {"type": type,
+             "dimension": d,
+             "groups": [dataset.groups[m]],
+             "defaultGroupAccessor": "sum",
+             "title": dataset.groups[m].title + " by " + inflector.titleize(d.key)}))
     })
 
     return result
@@ -128,7 +133,7 @@ function recommendCharts(dataset) {
                             dimensions: new Set([...dataset.groups[m].dimensions].filter((t) => dataset.dimensions[t].dim !== d2.dim)),
                             reducer: generateReducer(id, dataset.groups[m].accessor, function(r) { return d2.accessor(r) === item}),
                             groupAccessors: generateGroupAccessors(id),
-                            id: id
+                            key: id
                         }
                     })
                     let title = dataset.groups[m].title + " by " + inflector.titleize(d.key) + " by " + inflector.titleize(d2.key)
