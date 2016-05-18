@@ -25,10 +25,18 @@ const inflector = require('inflected')
 const pluck = require('pluck')
 const reductio = require('reductio')
 
+function pluckWithDefault(spec, defaultValue) {
+    let plucker = pluck(spec)
+    return function(o) {
+        return plucker(o) || defaultValue
+    }
+}
+
 function pluckFullLoc(rec) {
-    return Object.keys(rec["location"])
+    return rec["location"] ? Object.keys(rec["location"])
         .filter(function(k) {return typeof(rec["location"][k]) === "string"})
         .sort().map(function(k) {return k + ":" + rec["location"][k]}).join(":")
+        : "NA"
 }
 
 function pluckMetric(name) {
@@ -195,7 +203,7 @@ function deduce(data) {
                                 dim: field,
                                 key: tag,
                                 items: new Set(),
-                                accessor: pluck(field+"."+tag),
+                                accessor: pluckWithDefault(field+"."+tag, "NA"),
                                 metrics: new Set()
                             }
                         }
@@ -222,7 +230,7 @@ function deduce(data) {
                             result.dimensions[tag] = {
                                 dim: "time",
                                 key: tag,
-                                accessor: pluck(tag),
+                                accessor: pluckWithDefault(tag, new Date(0)),
                                 metrics: new Set()
                             }
                         })
@@ -257,7 +265,7 @@ function deduce(data) {
                             dim: "data_source",
                             key: field,
                             items: new Set(),
-                            accessor: pluck(field),
+                            accessor: pluckWithDefault(field, "NA"),
                             metrics: new Set()
                         }
                     }
