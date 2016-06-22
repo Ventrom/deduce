@@ -123,14 +123,14 @@ function recommendCharts(dataset) {
                     if (compatibleMetrics.length > 0) {
                         compatibleUnitsFound.push(dataset.groups[m].units)
                         compatibleMetrics.push(m)
-                        let title = "Average " + compatibleMetrics.map((m) => dataset.groups[m].title).join(", ") + " by " + inflector.titleize(d.key)
+                        let title = compatibleMetrics.map((m) => dataset.groups[m].title).join(", ") + " by " + inflector.titleize(d.key)
                         result.push({"type": "line", "dimension": d, "groups": compatibleMetrics.map((m) => dataset.groups[m]), "defaultGroupAccessor": "average", "title": title})
                     }
                 }
 
                 dataset.groups[m].dimensions.forEach((tag2) => {
                     let d2 = dataset.dimensions[tag2]
-                    if (d2.dim === "time" || d2.items.size < 2) return
+                    if (d2.dim === "time" || d2.items.size < 2 || typeof([...d2.items][0]) !== "string") return
                     let groups = [...d2.items].map((item) => {
                         let id = inflector.parameterize(item+"-"+m)
                         return {
@@ -149,6 +149,31 @@ function recommendCharts(dataset) {
                 })
             })
         }
+
+        if (d.dim === "time" || d.items.size < 2 || d.items.size > 10 || typeof([...d.items][0]) !== "string") return
+
+        // Generate grouped/stacked bar chart recommendations
+        d.metrics.forEach((m) => {
+            dataset.groups[m].dimensions.forEach((tag2) => {
+                let d2 = dataset.dimensions[tag2]
+                if (d2.dim === d.dim || d2.dim === "time" || d2.items.size < 2 || typeof([...d2.items][0]) !== "string") return
+                let groups = [...d2.items].map((item) => {
+                    let id = inflector.parameterize(item+"-"+m)
+                    return {
+                        title: dataset.groups[m].title,
+                        label: item,
+                        units: dataset.groups[m].units,
+                        accessor: dataset.groups[m].accessor,
+                        dimensions: new Set([...dataset.groups[m].dimensions].filter((t) => dataset.dimensions[t].dim !== d2.dim)),
+                        reducer: generateReducer(id, dataset.groups[m].accessor, function(r) { return d2.accessor(r) === item}),
+                        groupAccessors: generateGroupAccessors(id),
+                        key: id
+                    }
+                })
+                let title = dataset.groups[m].title + " by " + inflector.titleize(d.key) + " by " + inflector.titleize(d2.key)
+                result.push({"type": "bar", "dimension": d, "groups": groups, "defaultGroupAccessor": "sum", "title": title})
+            })
+        })
     })
 
     return result
