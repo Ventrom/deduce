@@ -39,6 +39,23 @@ function pluckFullLoc(rec) {
         : "NA"
 }
 
+function pluckLatLon(rec) {
+    if (! rec["location"]) return null
+    let lockeys = Object.keys(rec["location"])
+    let latnames = ["lat", "latitude", "lt", "ltd"]
+    let lonnames = ["lon", "long", "longitude", "lng", "ln"]
+    let lat = null, lon = null
+    for (let key of lockeys) {
+        if (typeof(rec["location"][key]) !== "number") continue
+        let lkey = key.toLowerCase()
+        if (latnames.find((n) => {return lkey === n}))
+            lat = key
+        if (lonnames.find((n) => {return lkey === n}))
+            lon = key
+    }
+    return (lat !== null && lon !== null) ? {"lat": rec["location"][lat], "lon": rec["location"][lon]} : null
+}
+
 function pluckMetric(name) {
     return function(r) {
         for (let m of r.metrics) {
@@ -82,7 +99,6 @@ function recommendFilters(dataset) {
         let dga = "sum"
         if (tag === "position") {
             type = "geo"
-            dga = "values"
         } else {
             type = d.items.size > 9 ? "row" : "pie"
         }
@@ -209,12 +225,10 @@ function deduce(data) {
             // Process well-known fields
             switch (field) {
                 case "location":
-                    //console.log("loc")
-                    //console.log(rec[field])
-                    if (typeof(rec[field]["latitude"]) === "number" &&
-                        typeof(rec[field]["longitude"]) === "number") {
+                    let latlon = pluckLatLon(rec)
+                    if (latlon) {
                             let fullLoc = pluckFullLoc(rec)
-                            result.locations[fullLoc] = {"lat": rec[field]["latitude"], "lon": rec[field]["longitude"]}
+                            result.locations[fullLoc] = latlon
                             if (!result.dimensions["position"]) {
                                 result.dimensions["position"] = {
                                     dim: field,
