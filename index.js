@@ -35,8 +35,25 @@ function pluckWithDefault(spec, defaultValue) {
 function pluckFullLoc(rec) {
     return rec["location"] ? Object.keys(rec["location"])
         .filter(function(k) {return typeof(rec["location"][k]) === "string"})
-        .sort().map(function(k) {return k + ":" + rec["location"][k]}).join(":")
+        .sort().map(function(k) {return k + "-" + rec["location"][k]}).join("-")
         : "NA"
+}
+
+function pluckLatLon(rec) {
+    if (! rec["location"]) return null
+    let lockeys = Object.keys(rec["location"])
+    let latnames = ["lat", "latitude", "lt", "ltd"]
+    let lonnames = ["lon", "long", "longitude", "lng", "ln"]
+    let lat = null, lon = null
+    for (let key of lockeys) {
+        if (typeof(rec["location"][key]) !== "number") continue
+        let lkey = key.toLowerCase()
+        if (latnames.find((n) => {return lkey === n}))
+            lat = key
+        if (lonnames.find((n) => {return lkey === n}))
+            lon = key
+    }
+    return (lat !== null && lon !== null) ? {"lat": rec["location"][lat], "lon": rec["location"][lon]} : null
 }
 
 function pluckMetric(name) {
@@ -77,14 +94,19 @@ function recommendFilters(dataset) {
 
     Object.keys(dataset.dimensions).forEach((tag) => {
         let d = dataset.dimensions[tag]
-        // TODO handle recommendations for geo filters
-        if (tag === "position" || d.dim === "time" || d.items.size <= 1) return
-        let type = d.items.size > 9 ? "row" : "pie"
+        if (d.dim === "time" || d.items.size <= 1) return
+        let type = ""
+        let dga = "sum"
+        if (tag === "position") {
+            type = "geo"
+        } else {
+            type = d.items.size > 9 ? "row" : "pie"
+        }
         d.metrics.forEach((m) => result.push(
             {"type": type,
              "dimension": d,
              "groups": [dataset.groups[m]],
-             "defaultGroupAccessor": "sum",
+             "defaultGroupAccessor": dga,
              "title": dataset.groups[m].title + " by " + inflector.titleize(d.key)}))
     })
 
@@ -189,6 +211,7 @@ function deduce(data) {
     let result = {
         dimensions: {},
         groups: {},
+        locations: {},
         timeRange: [Infinity, 0],
         records: data
     }
@@ -202,10 +225,10 @@ function deduce(data) {
             // Process well-known fields
             switch (field) {
                 case "location":
-                    if (typeof(rec[field]["lat"]) === "number" &&
-                        typeof(rec[field]["lon"]) === "number") {
+                    let latlon = pluckLatLon(rec)
+                    if (latlon) {
                             let fullLoc = pluckFullLoc(rec)
-                            result.locations[fullLoc] = {"lat": rec[field]["lat"], "lon": rec[field]["lon"]}
+                            result.locations[fullLoc] = latlon
                             if (!result.dimensions["position"]) {
                                 result.dimensions["position"] = {
                                     dim: field,
