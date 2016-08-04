@@ -97,8 +97,10 @@ function recommendFilters(dataset) {
         if (d.dim === "time" || d.items.size <= 1) return
         let type = ""
         let dga = "sum"
+        let dtitle = inflector.titleize(d.key)
         if (tag === "position") {
             type = "geo"
+            dtitle = "Location"
         } else {
             type = d.items.size > 9 ? "row" : "pie"
         }
@@ -107,7 +109,7 @@ function recommendFilters(dataset) {
              "dimension": d,
              "groups": [dataset.groups[m]],
              "defaultGroupAccessor": dga,
-             "title": dataset.groups[m].title + " by " + inflector.titleize(d.key)}))
+             "title": dataset.groups[m].title + " by " + dtitle}))
     })
 
     return result
