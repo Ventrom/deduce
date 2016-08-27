@@ -59,7 +59,7 @@ function pluckLatLon(rec) {
 function pluckMetric(name) {
     return function(r) {
         for (let m of r.metrics) {
-            if (m.name === name) return m.value
+            if (m.name === name) return m.canonicalized.value
         }
         return null
     }
